@@ -20,6 +20,7 @@
         buff    db  20,0,20 dup(0)
         num1    dw  0    
         num2    dw  0
+        err_flag db  0   ;
 
 .code
 main    proc
@@ -63,23 +64,39 @@ do_wrong:
         jmp wrong_input
 
 get_numbers:
-        mov bl, al ; Save menu choice
+        mov bl, al 
 
-        ; --- GET NUMBER 1 ---
+get_num1:
         mov ah,9
         mov dx,offset msg_n1
         int 21h
         call READ_NUM      
+        jc err_n1       
         mov num1, ax       
+        jmp get_num2
 
-        ; --- GET NUMBER 2 ---
+err_n1:
+        mov ah,9
+        mov dx,offset wi_msg
+        int 21h
+        jmp get_num1
+
+get_num2:
         mov ah,9
         mov dx,offset msg_n2
         int 21h
         call READ_NUM
+        jc err_n2
         mov num2, ax
+        jmp do_routing
 
-        ; --- ROUTING ---
+err_n2:
+        mov ah,9
+        mov dx,offset wi_msg
+        int 21h
+        jmp get_num2
+
+do_routing:
         cmp bl,'1'
         jne chk2
         jmp addi
@@ -216,34 +233,67 @@ READ_NUM PROC
         push bx
         push cx
         push dx
-        xor bx, bx         
+        xor bx, bx
+        mov byte ptr [err_flag], 0
+
 read_loop:
         mov ah, 1
         int 21h
-        cmp al, 13         
+        cmp al, 13
         je read_done
-        cmp al, '0'
-        jl read_loop       
-        cmp al, '9'
-        jg read_loop       
 
-        sub al, 30h        
+        cmp al, '0'
+        jl check_letters
+        cmp al, '9'
+        jg check_letters
+
+        sub al, 30h
         xor ah, ah
-        mov cx, ax         
+        mov cx, ax
 
         mov ax, bx
         mov dx, 10
-        mul dx             
-        add ax, cx         
-        mov bx, ax         
+        mul dx
+        add ax, cx
+        mov bx, ax
         jmp read_loop
+
+check_letters:
+        cmp al, 'A'
+        jl read_loop
+        cmp al, 'Z'
+        jle set_error
+
+        cmp al, 'a'
+        jl read_loop
+        cmp al, 'z'
+        jle set_error
+
+        jmp read_loop
+
+set_error:
+        mov byte ptr [err_flag], 1
+        jmp read_loop
+
 read_done:
-        mov ax, bx         
+        cmp byte ptr [err_flag], 1
+        je num_error
+
+        mov ax, bx
         pop dx
         pop cx
         pop bx
+        clc
+        ret
+
+num_error:
+        pop dx
+        pop cx
+        pop bx
+        stc
         ret
 READ_NUM ENDP
+
 
 PRINT_NUM PROC
         push ax
